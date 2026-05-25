@@ -1,86 +1,150 @@
-# Auto-Song-Cutter (全自动歌回切片机) ✂️🎵
+# Auto-Song-Cutter
 
-![Python](https://img.shields.io/badge/Python-3.10-blue.svg) ![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-green.svg) ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+Auto-Song-Cutter 是一個用 Python 執行的直播歌回自動切片與識曲工具。
 
-**Auto-Song-Cutter** 是一个基于深度学习的全自动直播歌回切片与识曲工具。
+目前架構很單純：
 
-它利用 **inaSpeechSegmenter** 精准提取歌曲片段，使用 **FFmpeg** 进行无损剪辑，并集成了 **Shazam** 接口实现全自动听歌识曲与文件重命名。
+- `main.py`：使用 `inaSpeechSegmenter` 偵測音樂片段，呼叫 FFmpeg 依原影片無轉碼切出歌曲片段。
+- `recognize_greedy.py`：使用 Shazam 介面對切好的影片做多點取樣識曲，成功後自動改名。
+- `requirements.txt`：Python 依賴清單，已針對 Mac Intel 與 Python 3.10 調整版本限制。
 
-## ✨ 核心特性
+## 功能
 
-- 🧠 **AI 智能分段**：精准区分 Singing (歌唱) 与 Speech (杂谈)，自动剔除 BGM 干扰。
-- 📝 **自动日志**：切片同时生成 `segments_log.txt`，记录包含原始时间戳的详细歌单。
-- 🔍 **贪心识曲 (New)**：集成 Shazam 贪心算法，自动在 0s/60s/120s 多点采样，大幅提高识曲准确率。
-- 🏷️ **自动重命名**：识别成功后自动将 `Song_01.mp4` 重命名为 `歌名 - 歌手.mp4`。
-- 🛠️ **B站专用修复**：提供一键修复脚本，解决 B 站网页端无法播放的问题，或暴力开启 Hi-Res 图标。
+- 自動偵測影片中的 `music` 區段。
+- 合併間隔很短的音樂片段，避免同一首歌被切太碎。
+- 依指定秒數修正片頭與片尾。
+- 輸出 `Songs_Export` 資料夾。
+- 產生 `segments_log.txt`，記錄來源影片、歌曲數量、檔名、起訖時間、長度與檔案大小。
+- 對 `Song_XX.mp4` 或 `.mkv` 檔進行 0 秒、60 秒、120 秒三段式識曲。
+- 識曲成功後以 `歌名 - 歌手.ext` 重新命名。
 
-## ⚙️ 安装依赖
+## 系統需求
 
-建议使用 Python 3.10 环境（以获得最佳 TensorFlow 兼容性）。
+- macOS Intel
+- Python 3.10
+- FFmpeg
+
+安裝 FFmpeg：
 
 ```bash
-# 安装核心依赖 (会自动锁定 numpy<2 以兼容 inaSpeechSegmenter)
+brew install ffmpeg
+```
+
+確認 FFmpeg 可用：
+
+```bash
+ffmpeg -version
+```
+
+## 安裝
+
+建議使用虛擬環境：
+
+```bash
+python3.10 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-注意：本项目依赖 FFmpeg，请确保电脑已安装 FFmpeg 并配置了环境变量。
+```
 
-🚀 使用指南 (Workflows)
-本项目设计为拖拽式工作流，主要包含三个步骤：
+## Mac Intel requirements 調整說明
 
-第一步：全自动切片 (Auto Cut)
-运行 main.py 或使用批处理脚本。
+`requirements.txt` 已針對 Mac Intel 固定主要版本，避免 pip 解析到不適合目前架構的組合：
 
-Bash
+- `inaSpeechSegmenter<0.8.0`：避開新版可能拉入不適合 Mac Intel 環境的 runtime 依賴。
+- `tensorflow==2.12.1`：搭配 Python 3.10 使用。
+- `numpy==1.24.3`：配合 TensorFlow 2.12.x 與 `inaSpeechSegmenter`，避免安裝到 NumPy 2.x。
+- `pyannote.core<6.0.0`、`pyannote.algorithms`：補上 `inaSpeechSegmenter` 相關相容依賴。
+- `tqdm`、`shazamio`、`aiohttp`：分別用於進度條與 Shazam 識曲。
 
-python main.py input.mp4 --trim_start 3.0 --min_duration 60
-输出：默认生成 Songs_Export 文件夹。
+如果你不是 Mac Intel，這份 requirements 不一定是最佳組合，尤其 Apple Silicon 或 Linux 可能需要不同的 TensorFlow 安裝方式。
 
-日志：文件夹内包含 segments_log.txt，记录了切片的原始起止时间。
+## 使用方式
 
-第二步：听歌识曲与改名 (Auto Recognize)
-切片完成后，运行 recognize_greedy.py (或使用 一键识曲_贪心版.bat)。
+### 1. 自動切片
 
-它会自动扫描输出文件夹，对未命名的 Song_xx.mp4 进行多点位识别：
+```bash
+python main.py input.mp4
+```
 
-策略：尝试开头 0s -> 副歌 60s -> 尾奏 120s。
+可調整參數：
 
-结果：一旦命中，自动重命名文件。
+```bash
+python main.py input.mp4 \
+  --output Songs_Export \
+  --trim_start 3.0 \
+  --extend_end 5.0 \
+  --min_duration 60 \
+  --gap_tolerance 15
+```
 
-第三步：B站上传处理 (Post-Processing)
-针对 Bilibili 上传优化，提供两个专用脚本：
+參數說明：
 
-hires_fix.bat (推荐)
+- `video_path`：輸入影片路徑。
+- `--output`：輸出資料夾，預設 `Songs_Export`。
+- `--trim_start`：每段開頭往後跳過秒數，預設 `3.0`。
+- `--extend_end`：每段結尾延長秒數，預設 `5.0`。
+- `--min_duration`：最短歌曲秒數，預設 `60.0`。
+- `--gap_tolerance`：兩段音樂間隔小於此秒數時合併，預設 `15.0`。
 
-功能：修复音频编码为 AAC-LC 320k，重写时间戳。
+輸出內容：
 
-用途：解决上传后 B 站网页端黑屏、无法播放的问题。
+```text
+Songs_Export/
+├── Song_01.mp4
+├── Song_02.mp4
+└── segments_log.txt
+```
 
-画质：无损 Copy。
+### 2. 識曲與改名
 
-force_hires.bat (发烧友)
+切片完成後執行：
 
-功能：强制转码为 FLAC 音频并封装为 MKV。
+```bash
+python recognize_greedy.py
+```
 
-用途：暴力激活 B 站的 "Hi-Res" 无损音质图标。
+腳本會依序尋找以下資料夾，找到第一個存在的資料夾後開始處理：
 
-📂 推荐目录结构
-为了保证脚本正常运行，建议目录结构如下：
+- `Songs_Export`
+- `hires`
+- `Bilibili_Ready`
+- `Bilibili_Upload`
+- `Songs_Final_V6`
 
-Plaintext
+目前倉庫沒有提供轉檔或 Bilibili 修復腳本；上述資料夾只是 `recognize_greedy.py` 內保留的搜尋清單。一般使用只需要 `Songs_Export`。
 
+識曲流程：
+
+- 掃描 `.mp4` 與 `.mkv`。
+- 跳過檔名已包含 ` - ` 的檔案。
+- 依序截取 0 秒、60 秒、120 秒附近音訊送到 Shazam。
+- 命中後自動改名。
+
+## 專案結構
+
+```text
 Auto-Song-Cutter/
-├── .venv/                 # Python 虚拟环境
-├── main.py                # 切片主程序
-├── recognize_greedy.py    # 识曲主程序
-├── requirements.txt       # 依赖清单
-├── 一键切歌.bat           # 拖拽启动脚本
-├── 一键识曲_贪心版.bat    # 点击启动脚本
-└── README.md              # 说明文档
-❓ 常见问题
-Q: 识曲脚本报错 找不到文件夹？ A: 脚本默认查找 Songs_Export, hires, Bilibili_Ready 等文件夹。如果你修改了输出目录名，请在 recognize_greedy.py 的 POSSIBLE_FOLDERS 列表中添加你的文件夹名。
+├── main.py
+├── recognize_greedy.py
+├── requirements.txt
+└── README.md
+```
 
-Q: 批处理脚本无法处理中文文件名？ A: 请确保你的 .bat 文件是以 ANSI (GB2312) 编码保存的，不要使用 UTF-8。
+## 常見問題
 
-Q: 识别率突然下降？ A: 不同主播的混音风格不同。如果 BGM 太大导致误判，请在切片时尝试增大 --min_duration (如 90) 或减小 --gap_tolerance (如 5)。
+### 找不到 FFmpeg
 
-📄 License
+請確認已安裝 FFmpeg，且 `ffmpeg -version` 可以在同一個 shell 中執行。
+
+### 找不到切片資料夾
+
+`recognize_greedy.py` 預設會先找 `Songs_Export`。如果你使用不同輸出資料夾，請修改程式中的 `POSSIBLE_FOLDERS`。
+
+### 識曲結果不理想
+
+可以先調整切片參數，例如提高 `--min_duration` 或降低 `--gap_tolerance`，減少雜談、BGM 或過短片段對識曲的影響。
+
+## License
+
 MIT License
