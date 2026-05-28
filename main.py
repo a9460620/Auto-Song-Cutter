@@ -11,6 +11,14 @@ def format_timestamp(seconds):
     h, m = divmod(m, 60)
     return f"{int(h):02d}:{int(m):02d}:{s:06.3f}"
 
+def format_filename_time(seconds):
+    """将秒数转换为适合文件名的 HH_MM_SS 格式"""
+    if seconds < 0: seconds = 0
+    total_seconds = int(seconds)
+    m, s = divmod(total_seconds, 60)
+    h, m = divmod(m, 60)
+    return f"{int(h):02d}_{int(m):02d}_{int(s):02d}"
+
 def main():
     # 1. 设置命令行参数
     parser = argparse.ArgumentParser(description="基于 AI (inaSpeechSegmenter) 的全自动歌回切片工具")
@@ -99,7 +107,7 @@ def main():
             
             if new_s >= new_e: continue
             
-            filename = f"Song_{i+1:02d}.mp4"
+            filename = f"{i+1:02d}_{format_filename_time(new_s)}.mp4"
             out_name = os.path.join(output_dir, filename)
 
             # === 1. 先执行切片 (必须先生成文件才能获取大小) ===

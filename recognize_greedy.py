@@ -1,7 +1,7 @@
 import asyncio
 import os
+import re
 import subprocess
-import sys
 from shazamio import Shazam
 
 # ================= 智能配置区 =================
@@ -17,7 +17,25 @@ POSSIBLE_FOLDERS = [
 
 TEMP_AUDIO = "temp_sample.wav"
 CHECK_POINTS = [0, 60, 120] # 0秒, 60秒, 120秒 三次贪心采样
+UNCHECKED_FILENAME_PATTERN = re.compile(r"^(\d{2}_\d{2}_\d{2}_\d{2}|Song_\d{2})$")
 # ============================================
+
+def sanitize_filename_part(text):
+    """移除不适合放在文件名里的字符"""
+    return "".join([c for c in text if c not in r'/:*?"<>|']).strip()
+
+def is_unrecognized_file(filename):
+    stem, ext = os.path.splitext(filename)
+    if ext.lower() not in [".mp4", ".mkv"]:
+        return False
+    if filename.startswith("temp_"):
+        return False
+    return bool(UNCHECKED_FILENAME_PATTERN.match(stem))
+
+def build_recognized_name(filename, title):
+    stem, ext = os.path.splitext(filename)
+    safe_title = sanitize_filename_part(title) or "Unknown"
+    return f"{stem}_{safe_title}{ext}"
 
 async def get_audio_sample(input_file, start_time, duration=15):
     """用 ffmpeg 截取音频片段"""
@@ -56,11 +74,8 @@ async def main():
         return
 
     # --- 2. 扫描文件 ---
-    # 只处理 MP4 且排除临时文件
-    files = [f for f in os.listdir(target_dir) if f.endswith(".mp4") or f.endswith(".mkv")]
-    # 过滤掉已经改过名的 (假设名字里带 " - " 的是改好的)
-    # 如果你想强制重新跑，把下面这行注释掉
-    files = [f for f in files if " - " not in f and not f.startswith("temp_")]
+    # 只处理尚未加歌名的切片文件，例如 01_00_00_03.mp4 或旧版 Song_01.mp4
+    files = [f for f in os.listdir(target_dir) if is_unrecognized_file(f)]
 
     if not files:
         print(f"📂 [{target_dir}] 里没有需要改名的视频文件。")
@@ -93,13 +108,8 @@ async def main():
                     
                     print(f"✅ 命中! -> [{title} - {subtitle}]")
                     
-                    # 只有真正拿到结果才改名
-                    safe_title = "".join([c for c in title if c not in r'/:*?"<>|'])
-                    safe_artist = "".join([c for c in subtitle if c not in r'/:*?"<>|'])
-                    
-                    # 保持原始后缀 (mp4 或 mkv)
-                    ext = os.path.splitext(file)[1]
-                    new_name = f"{safe_title} - {safe_artist}{ext}"
+                    # 保持原始编号与开始时间前缀，例如 01_00_00_03_歌名.mp4
+                    new_name = build_recognized_name(file, title)
                     new_path = os.path.join(target_dir, new_name)
                     
                     if not os.path.exists(new_path):
