@@ -54,6 +54,18 @@ hires/
 Bilibili_Ready/
 Bilibili_Upload/
 HiRes_Upload/
+Bilibili_Webcut_Downloads/
+bilibili_tools/Bilibili_Webcut_Downloads/
+bilibili_tools/Compare_*/
+bilibili_tools/download_state.json
+bilibili_tools/direct_download_state.json
+bilibili_tools/*download_state.json
+bilibili_tools/cookies.json
+bilibili_tools/cookies.txt
+bilibili_tools/qrcode.png
+cookies.json
+cookies.txt
+qrcode.png
 
 # === 忽略临时音频文件 ===
 temp_process.wav

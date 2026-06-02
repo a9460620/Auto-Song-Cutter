@@ -13,6 +13,9 @@ tqdm
 shazamio
 aiohttp
 
+# === Bilibili 工具 ===
+biliup
+
 # === pyannote 相容性限制 ===
 pyannote.core<6.0.0
 pyannote.algorithms
